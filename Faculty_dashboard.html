@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Campus Connect – Faculty Dashboard</title>
+  <link rel="icon" href="CAMPUS CONNECT.png" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #f2f4f8;
+      padding: 20px;
+    }
+
+    header {
+      background: #18ab91;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    header img {
+      height: 70px;
+      display: block;
+      margin: 0 auto 8px;
+    }
+
+    header h1 {
+      font-size: 26px;
+      margin-bottom: 4px;
+    }
+
+    header p {
+      font-size: 15px;
+      opacity: 0.95;
+    }
+
+    .profile-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: #fff;
+      color: #18ab91;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    main section {
+      margin-top: 25px;
+    }
+
+    .chat-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      max-width: 250px;
+      margin-top: 10px;
+    }
+
+    .chat-btn {
+      display: block;
+      padding: 12px;
+      text-align: center;
+      border: 2px solid #18ab91;
+      border-radius: 10px;
+      color: #18ab91;
+      text-decoration: none;
+      font-weight: 600;
+      background: #fff;
+      transition: 0.3s;
+    }
+
+    .chat-btn:hover {
+      background: #18ab91;
+      color: #fff;
+    }
+
+    .logout-btn {
+      margin-top: 30px;
+      padding: 12px 25px;
+      border-radius: 10px;
+      border: none;
+      background: #18ab91;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+
+    .profile-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .profile-box {
+      background: #fff;
+      padding: 25px;
+      border-radius: 14px;
+      width: 90%;
+      max-width: 380px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .profile-box h2 {
+      color: #18ab91;
+      margin-bottom: 10px;
+    }
+
+    .class-card {
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .class-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .small-btn {
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #18ab91;
+      background: #fff;
+      color: #18ab91;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .small-btn:hover {
+      background: #18ab91;
+      color: #fff;
+    }
+
+    .notice-item {
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f9f9f9;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <img src="CAMPUS CONNECT.png" alt="Campus Connect Logo">
+    <h1>Campus Connect</h1>
+    <p>Faculty Dashboard</p>
+    <button id="profileBtn" class="profile-btn">👤</button>
+  </header>
+
+  <main>
+    <section>
+      <h3>🏫 My Classes</h3>
+      <form id="classForm" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-width:400px;">
+        <input id="className" type="text" placeholder="Class Name (e.g. Physics 101)" required>
+        <input id="classCode" type="text" placeholder="Custom Class Code (optional)">
+        <button type="submit" style="background:#18ab91;color:#fff;border:none;padding:10px;border-radius:8px;">Create
+          Class</button>
+      </form>
+      <div id="classList" style="margin-top:15px;display:flex;flex-direction:column;gap:10px;"></div>
+    </section>
+
+    <section>
+      <h3>📢 Global Notice Board</h3>
+      <form id="noticeForm" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-width:400px;">
+        <input id="noticeTitle" type="text" placeholder="Notice Title" required>
+        <textarea id="noticeMessage" rows="3" placeholder="Write your notice..." required></textarea>
+        <input type="file" id="noticeFile" accept="image/*,.pdf">
+        <button type="submit" style="background:#18ab91;color:#fff;border:none;padding:10px;border-radius:8px;">Post
+          Global Notice</button>
+      </form>
+      <div id="noticeList" style="margin-top:15px;display:flex;flex-direction:column;gap:10px;"></div>
+    </section>
+
+    <section>
+      <h3>💬 Chat Options</h3>
+      <div class="chat-buttons">
+        <a href="chat.html" target="_blank" class="chat-btn">🌐 Global Chat</a>
+        <a href="private.html" target="_blank" class="chat-btn">💬 Private Chat</a>
+        <a href="groups.html" target="_blank" class="chat-btn">👥 Groups</a>
+      </div>
+    </section>
+
+    <button id="logoutBtn" class="logout-btn">Logout</button>
+  </main>
+
+  <!-- Profile Modal (same as before) -->
+  <div id="profileModal" class="profile-modal">
+    <div class="profile-box">
+      <h2>Your Profile</h2>
+      <label>Name</label><input type="text" id="profName" />
+      <label>Email</label><input type="email" id="profEmail" disabled />
+      <label>Role</label><input type="text" id="profRole" disabled />
+      <label>Bio</label><textarea id="profBio" rows="3"></textarea>
+      <label>Profile Image</label><input type="file" id="profImage" accept="image/*" />
+      <button id="saveProfile">Save</button>
+      <button id="closeProfile" style="background:#ccc;color:#000;margin-left:8px;">Close</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      auth, db, storage, signOut, requireAuth,
+      collection, addDoc, query, where, onSnapshot,
+      serverTimestamp, sRef, uploadBytesResumable, getDownloadURL,
+      getUserProfile, saveUserProfile, doc, getDoc
+    } from "./firebase.js";
+
+    let faculty = null;
+    requireAuth(async (u) => {
+      faculty = u;
+      await loadClasses();
+      loadGlobalNotices();
+    });
+
+    // logout
+    logoutBtn.onclick = () => signOut(auth).then(() => window.location.href = "index.html");
+
+    // create class
+    classForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const name = className.value.trim();
+      let code = classCode.value.trim();
+      if (!code) code = "CC-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      await addDoc(collection(db, "classes"), {
+        name, code, creator: auth.currentUser.uid, members: [auth.currentUser.uid], createdAt: serverTimestamp()
+      });
+      alert(`Class "${name}" created. Code: ${code}`);
+      classForm.reset();
+    });
+
+    // load classes created by faculty
+    async function loadClasses() {
+      const q = query(collection(db, "classes"), where("creator", "==", auth.currentUser.uid));
+      onSnapshot(q, snap => {
+        classList.innerHTML = "";
+        snap.forEach(docSnap => {
+          const id = docSnap.id;
+          const c = docSnap.data();
+          const div = document.createElement("div");
+          div.className = "class-card";
+          div.innerHTML = `
+        <div class="class-row">
+          <div style="flex:1;">
+            <strong>${c.name}</strong><br>Code: <span style='color:#18ab91'>${c.code}</span><br>Members: ${(c.members || []).length}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="small-btn open-class" data-id="${id}">Open Classroom</button>
+            <button class="small-btn view-class-notices" data-id="${id}">View Class Notices</button>
+          </div>
+        </div>
+      `;
+          classList.appendChild(div);
+        });
+
+        // attach event listeners (delegated)
+        document.querySelectorAll(".open-class").forEach(btn => {
+          btn.onclick = () => {
+            const id = btn.dataset.id;
+            // open faculty classroom page with classId
+            window.open(`classroomf.html?classId=${id}`, "_blank");
+          };
+        });
+        document.querySelectorAll(".view-class-notices").forEach(btn => {
+          btn.onclick = async () => {
+            const id = btn.dataset.id;
+            // open class notices modal simple: new tab to classroomf
+            window.open(`classroomf.html?classId=${id}&view=notices`, "_blank");
+          };
+        });
+      });
+    }
+
+    // post global notices
+    noticeForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const title = noticeTitle.value.trim();
+      const msg = noticeMessage.value.trim();
+      const file = noticeFile.files[0];
+      if (!title || !msg) return alert("Please fill title and message");
+      let fileURL = "", fileName = "";
+      if (file) {
+        const path = `notices/${auth.currentUser.uid}/${Date.now()}_${file.name}`;
+        const ref = sRef(storage, path);
+        const uploadTask = await uploadBytesResumable(ref, file);
+        fileURL = await getDownloadURL(uploadTask.ref);
+        fileName = file.name;
+      }
+      await addDoc(collection(db, "notices"), {
+        title, message: msg, fileURL, fileName, facultyId: auth.currentUser.uid,
+        facultyName: faculty.displayName || "Faculty", createdAt: serverTimestamp()
+      });
+      alert("Global notice posted!");
+      noticeForm.reset();
+    });
+
+    // load global notices
+    function loadGlobalNotices() {
+      const q = query(collection(db, "notices"));
+      onSnapshot(q, snap => {
+        noticeList.innerHTML = "";
+        snap.forEach(docSnap => {
+          const n = docSnap.data();
+          const div = document.createElement("div");
+          div.className = "notice-item";
+          div.innerHTML = `<strong>${n.title}</strong> <small style='color:#666'>by ${n.facultyName}</small>
+        <p style='margin-top:6px;'>${n.message}</p>
+        ${n.fileURL ? `<a href='${n.fileURL}' target='_blank' style='color:#18ab91;'>📎 View Attachment</a>` : ""}
+        <div style='font-size:12px;color:#777;margin-top:4px;'>${n.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>`;
+          noticeList.appendChild(div);
+        });
+      });
+    }
+
+    // profile modal
+    profileBtn.onclick = async () => {
+      const p = await getUserProfile(auth.currentUser.uid);
+      profName.value = p?.name || "";
+      profEmail.value = p?.email || "";
+      profRole.value = p?.role || "faculty";
+      profBio.value = p?.bio || "";
+      profileModal.style.display = "flex";
+    };
+    closeProfile.onclick = () => profileModal.style.display = "none";
+    saveProfile.onclick = async () => {
+      await saveUserProfile(auth.currentUser.uid, {
+        name: profName.value, email: profEmail.value, role: profRole.value, bio: profBio.value, updatedAt: new Date()
+      });
+      alert("Profile saved!");
+      profileModal.style.display = "none";
+    };
+  </script>
+</body>
+
+</html>

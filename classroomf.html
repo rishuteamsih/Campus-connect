@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Classroom – Faculty</title>
+  <link rel="icon" href="CAMPUS CONNECT.png" />
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+    body { min-height:100vh; background:#f2f4f8; padding:20px; }
+    header { background:#18ab91; color:#fff; text-align:center; padding:18px; border-radius:12px; margin-bottom:18px; }
+    header h1 { font-size:20px; margin-bottom:4px; }
+    .card { background:#fff; padding:12px; border-radius:10px; border:1px solid #eee; margin-bottom:12px; }
+    input, textarea, select { width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; margin-top:6px; }
+    .btn { padding:10px 14px; border-radius:8px; border:none; background:#18ab91; color:#fff; font-weight:600; cursor:pointer; }
+    .list-item { border:1px solid #eee; padding:10px; border-radius:8px; background:#fafafa; margin-bottom:8px; }
+    .muted { font-size:12px; color:#666; margin-top:6px; }
+    .flex { display:flex; gap:8px; align-items:center; }
+    .small { padding:6px 8px; border-radius:8px; border:1px solid #18ab91; background:#fff; color:#18ab91; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="classTitle">Classroom</h1>
+    <div id="classMeta" class="muted"></div>
+  </header>
+
+  <main style="max-width:900px;margin:0 auto;">
+    <div class="card">
+      <h3>📢 Post Class Notice</h3>
+      <form id="classNoticeForm" style="display:flex;flex-direction:column;gap:8px;max-width:700px;">
+        <input id="cNoticeTitle" placeholder="Notice title" required>
+        <textarea id="cNoticeMsg" rows="3" placeholder="Write the notice..." required></textarea>
+        <input type="file" id="cNoticeFile" accept="image/*,.pdf">
+        <button class="btn" type="submit">Post Notice to Class</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>📝 Create Assignment</h3>
+      <form id="assignmentForm" style="display:flex;flex-direction:column;gap:8px;max-width:700px;">
+        <input id="assignTitle" placeholder="Assignment title" required>
+        <textarea id="assignDesc" rows="3" placeholder="Instructions / description"></textarea>
+        <input type="date" id="assignDue">
+        <input type="file" id="assignFile" accept="image/*,.pdf">
+        <button class="btn" type="submit">Post Assignment</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>📥 Submissions</h3>
+      <div id="submissionsArea">
+        <div class="muted">No class selected yet.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>💬 Student Questions</h3>
+      <div id="questionsArea">
+        <div class="muted">No class selected yet.</div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import {
+      requireAuth, db, storage,
+      collection, query, where, orderBy, onSnapshot,
+      addDoc, serverTimestamp, sRef, uploadBytesResumable, getDownloadURL,
+      doc, getDoc, getDocs, updateDoc
+    } from "./firebase.js";
+
+    let me = null;
+    let classId = null;
+    let classData = null;
+
+    function getQueryParam(name) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+
+    requireAuth(async (u) => {
+      me = u;
+      classId = getQueryParam("classId");
+      if (!classId) {
+        alert("No class selected. Open this page from the dashboard.");
+        return;
+      }
+      await loadClassMeta();
+      initListeners();
+      watchClassNotices();
+      watchAssignments();
+      watchSubmissionsAndQuestions();
+    });
+
+    async function loadClassMeta() {
+      const ref = doc(db, "classes", classId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        alert("Class not found.");
+        return;
+      }
+      classData = snap.data();
+      classTitle.textContent = classData.name || "Classroom";
+      classMeta.textContent = `Code: ${classData.code} · Members: ${(classData.members || []).length}`;
+    }
+
+    function initListeners() {
+      // post class notice
+      classNoticeForm.addEventListener("submit", async e => {
+        e.preventDefault();
+        const title = cNoticeTitle.value.trim();
+        const msg = cNoticeMsg.value.trim();
+        const file = cNoticeFile.files[0];
+        if (!title || !msg) return alert("Please fill title and message");
+        let fileURL = "", fileName = "";
+        if (file) {
+          const path = `classes/${classId}/notices/${Date.now()}_${file.name}`;
+          const ref = sRef(storage, path);
+          const uploadTask = await uploadBytesResumable(ref, file);
+          fileURL = await getDownloadURL(uploadTask.ref);
+          fileName = file.name;
+        }
+        await addDoc(collection(db, "classes", classId, "notices"), {
+          title, message: msg, fileURL, fileName, facultyId: me.uid, facultyName: me.displayName || "Faculty", createdAt: serverTimestamp()
+        });
+        alert("Class notice posted.");
+        classNoticeForm.reset();
+      });
+
+      // create assignment
+      assignmentForm.addEventListener("submit", async e => {
+        e.preventDefault();
+        const title = assignTitle.value.trim();
+        const desc = assignDesc.value.trim();
+        const due = assignDue.value || null;
+        const file = assignFile.files[0];
+        if (!title) return alert("Please add a title");
+        let fileURL = "", fileName = "";
+        if (file) {
+          const path = `classes/${classId}/assignments/${Date.now()}_${file.name}`;
+          const ref = sRef(storage, path);
+          const uploadTask = await uploadBytesResumable(ref, file);
+          fileURL = await getDownloadURL(uploadTask.ref);
+          fileName = file.name;
+        }
+        await addDoc(collection(db, "classes", classId, "assignments"), {
+          title, description: desc, fileURL, fileName, dueDate: due, createdAt: serverTimestamp(), postedBy: me.uid
+        });
+        alert("Assignment posted.");
+        assignmentForm.reset();
+      });
+    }
+
+    function watchAssignments() {
+      const q = query(collection(db, "classes", classId, "assignments"), orderBy("createdAt", "desc"));
+      onSnapshot(q, snap => {
+        // optional — kept for potential UI updates
+      });
+    }
+
+    function watchClassNotices() {
+      const q = query(collection(db, "classes", classId, "notices"), orderBy("createdAt", "desc"));
+      onSnapshot(q, snap => {
+        // not shown in this faculty UI; notices are posted by faculty
+      });
+    }
+
+    // Watch submissions and questions (includes general flat submissions)
+    function watchSubmissionsAndQuestions() {
+      submissionsArea.innerHTML = "";
+
+      // 1) Watch per-assignment submissions
+      const assignQ = query(collection(db, "classes", classId, "assignments"));
+      onSnapshot(assignQ, async snap => {
+        // Clear assignment-related nodes (we'll rebuild)
+        // We'll keep submissionsArea cumulative: first assignments, then flat general submissions
+        submissionsArea.innerHTML = "";
+        if (snap.empty) {
+          // still show general submissions below
+          const placeholder = document.createElement("div");
+          placeholder.className = "muted";
+          placeholder.textContent = "No assignments yet.";
+          submissionsArea.appendChild(placeholder);
+        } else {
+          for (const aDoc of snap.docs) {
+            const a = aDoc.data();
+            const aId = aDoc.id;
+            const heading = document.createElement("div");
+            heading.style.marginBottom = "6px";
+            heading.innerHTML = `<strong>${a.title}</strong> <div class='muted'>Posted: ${a.createdAt?.toDate?.()?.toLocaleString?.() || ""} ${a.dueDate ? ' · Due: ' + a.dueDate : ''}</div>`;
+            submissionsArea.appendChild(heading);
+
+            const subsQ = query(collection(db, "classes", classId, "assignments", aId, "submissions"), orderBy("createdAt", "desc"));
+            // attach a snapshot listener per assignment
+            onSnapshot(subsQ, sSnap => {
+              const wrapper = document.createElement("div");
+              wrapper.style.marginBottom = "12px";
+              if (sSnap.empty) {
+                wrapper.innerHTML = "<div class='muted'>No submissions for this assignment yet.</div>";
+              } else {
+                sSnap.forEach(sDoc => {
+                  const s = sDoc.data();
+                  const div = document.createElement("div");
+                  div.className = "list-item";
+                  div.innerHTML = `<strong>${s.studentName || s.studentEmail}</strong>
+                    <div style="margin-top:6px;">${s.message || ""}</div>
+                    ${s.fileURL ? `<div style="margin-top:6px;"><a href="${s.fileURL}" target="_blank">📎 View Submission</a></div>` : ""}
+                    <div class="muted">Submitted: ${s.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>`;
+                  wrapper.appendChild(div);
+                });
+              }
+              // append wrapper after the assignment heading
+              submissionsArea.appendChild(wrapper);
+            });
+          }
+        }
+      });
+
+      // 2) Watch general flat submissions (students who didn't pick an assignment)
+      const flatSubsQ = query(collection(db, "classes", classId, "submissions"), orderBy("createdAt", "desc"));
+      onSnapshot(flatSubsQ, snap => {
+        // If no subcollections were present, ensure we still have content
+        if (!snap.empty) {
+          const heading = document.createElement("div");
+          heading.style.marginTop = "12px";
+          heading.innerHTML = `<strong>General Submissions (No Assignment ID)</strong>`;
+          submissionsArea.appendChild(heading);
+          snap.forEach(docSnap => {
+            const s = docSnap.data();
+            const div = document.createElement("div");
+            div.className = "list-item";
+            div.innerHTML = `<strong>${s.studentName || s.studentEmail}</strong>
+              <div style="margin-top:6px;">${s.title || ""}</div>
+              <div style="margin-top:6px;">${s.message || ""}</div>
+              ${s.fileURL ? `<div style="margin-top:6px;"><a href="${s.fileURL}" target="_blank">📎 View Submission</a></div>` : ""}
+              <div class="muted">Submitted: ${s.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>`;
+            submissionsArea.appendChild(div);
+          });
+        }
+      });
+
+      // 3) Watch questions
+      const qQ = query(collection(db, "classes", classId, "questions"), orderBy("createdAt", "desc"));
+      onSnapshot(qQ, snap => {
+        questionsArea.innerHTML = "";
+        if (snap.empty) questionsArea.innerHTML = "<div class='muted'>No questions yet.</div>";
+        snap.forEach(docSnap => {
+          const q = docSnap.data();
+          const div = document.createElement("div");
+          div.className = "list-item";
+          div.innerHTML = `<strong>${q.studentName || q.studentEmail}</strong>
+            <div style="margin-top:6px;">${q.message}</div>
+            <div class="muted">Asked: ${q.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>
+            <div style="margin-top:8px;">
+              <input placeholder="Type your reply..." data-qid="${docSnap.id}" class="replyInput" />
+              <button class="small replyBtn" data-qid="${docSnap.id}">Reply</button>
+            </div>
+            ${q.reply ? `<div style="margin-top:8px;background:#fff;padding:8px;border-radius:6px;border:1px solid #eee;"><strong>Your reply:</strong><div>${q.reply}</div></div>` : ""}`;
+          questionsArea.appendChild(div);
+        });
+
+        // attach reply listeners
+        document.querySelectorAll(".replyBtn").forEach(btn => {
+          btn.onclick = async () => {
+            const qid = btn.dataset.qid;
+            const input = document.querySelector(`.replyInput[data-qid="${qid}"]`);
+            const text = input.value.trim();
+            if (!text) return alert("Please type a reply.");
+            await updateDoc(doc(db, "classes", classId, "questions", qid), { reply: text, repliedBy: me.uid, repliedAt: serverTimestamp() });
+            alert("Reply sent.");
+            input.value = "";
+          };
+        });
+      });
+    }
+  </script>
+</body>
+</html>

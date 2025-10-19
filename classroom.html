@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Campus Connect – Classroom</title>
+    <link rel="icon" href="CAMPUS CONNECT.png" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #f2f4f8;
+            padding: 20px;
+        }
+
+        header {
+            background: #18ab91;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        .card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #eee;
+            margin-bottom: 14px;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-top: 6px;
+        }
+
+        .btn {
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: none;
+            background: #18ab91;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .secondary {
+            background: #fff;
+            color: #18ab91;
+            border: 1px solid #18ab91;
+        }
+
+        .list-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 8px;
+            background: #fafafa;
+            margin-bottom: 8px;
+        }
+
+        .muted {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Classroom</h1>
+        <p id="userInfo" class="muted"></p>
+    </header>
+
+    <main style="max-width:900px;margin:0 auto;">
+        <div class="card">
+            <h3>🔗 Join a Class</h3>
+            <form id="joinForm" style="display:flex;gap:8px;align-items:center;max-width:600px;">
+                <input id="joinCode" placeholder="Enter Class Code (e.g. CC-ABC123)" required>
+                <button class="btn" type="submit">Join</button>
+            </form>
+            <div id="myClasses" style="margin-top:12px;"></div>
+        </div>
+
+        <div id="classArea" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+                <h2 id="classTitle"></h2>
+                <div>
+                    <button id="leaveClassBtn" class="btn secondary">Leave Class</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📢 Class Notices</h3>
+                <div id="classNotices"></div>
+            </div>
+
+            <div class="card">
+                <h3>📝 Assignments</h3>
+                <div id="assignList"></div>
+            </div>
+
+            <div class="card">
+                <h3>📤 Submit Assignment / Ask Question</h3>
+                <form id="submitForm" style="display:flex;flex-direction:column;gap:8px;max-width:700px;">
+                    <label>Type</label>
+                    <select id="submitType">
+                        <option value="submission">Submit Assignment</option>
+                        <option value="question">Ask Question</option>
+                    </select>
+                    <input id="submitFor" placeholder="Assignment ID (optional - to submit for a specific assignment)">
+                    <input id="submitTitle" placeholder="Title (assignment name or question)" required>
+                    <textarea id="submitMsg" rows="3" placeholder="Write message (answer or question)"></textarea>
+                    <input type="file" id="submitFile" accept="image/*,.pdf">
+                    <button class="btn" type="submit">Send</button>
+                </form>
+                <div id="submissions" style="margin-top:12px;"></div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import {
+            auth, db, requireAuth, collection, query, where, getDocs,
+            addDoc, onSnapshot, serverTimestamp, sRef, uploadBytesResumable, getDownloadURL,
+            doc, updateDoc, getDoc, orderBy
+        } from "./firebase.js";
+
+        let me = null;
+        let currentClass = null;
+
+        requireAuth(async (u) => {
+            me = u;
+            userInfo.textContent = `Signed in as ${me.displayName || me.email}`;
+            loadMyClasses();
+        });
+
+        // join class by code
+        joinForm.addEventListener("submit", async e => {
+            e.preventDefault();
+            const code = joinCode.value.trim();
+            if (!code) return;
+            const q = query(collection(db, "classes"), where("code", "==", code));
+            const snap = await getDocs(q);
+            if (snap.empty) return alert("Class not found.");
+            const cDoc = snap.docs[0];
+            const classId = cDoc.id;
+            const cData = cDoc.data();
+            // add to members (best-effort client-side)
+            const members = cData.members || [];
+            if (!members.includes(me.uid)) {
+                try {
+                    await updateDoc(doc(db, "classes", classId), { members: [...members, me.uid] });
+                } catch (e) {
+                    // fallback or rules restrictions: still allow viewing if already added server-side
+                }
+            }
+            joinForm.reset();
+            loadMyClasses();
+            openClass(classId);
+        });
+
+        // load classes where student is a member
+        function loadMyClasses() {
+            const q = query(collection(db, "classes"), where("members", "array-contains", me.uid));
+            onSnapshot(q, snap => {
+                myClasses.innerHTML = "";
+                if (snap.empty) myClasses.innerHTML = "<div class='muted'>No classes yet. Join using a code.</div>";
+                snap.forEach(docSnap => {
+                    const c = docSnap.data();
+                    const id = docSnap.id;
+                    const div = document.createElement("div");
+                    div.className = "list-item";
+                    div.innerHTML = `<strong>${c.name}</strong><div class="muted">Code: <span style="color:#18ab91">${c.code}</span></div>
+        <div style="margin-top:8px;"><button class="btn secondary open-class" data-id="${id}">Open</button></div>`;
+                    myClasses.appendChild(div);
+                });
+                document.querySelectorAll(".open-class").forEach(btn => {
+                    btn.onclick = () => openClass(btn.dataset.id);
+                });
+            });
+        }
+
+        async function openClass(classId) {
+            currentClass = classId;
+            const snap = await getDoc(doc(db, "classes", classId));
+            const cData = snap.exists() ? snap.data() : {};
+            classArea.style.display = "block";
+            classTitle.textContent = cData.name || "Class";
+            // notices
+            const qNotices = query(collection(db, "classes", classId, "notices"), orderBy("createdAt", "desc"));
+            onSnapshot(qNotices, ns => {
+                classNotices.innerHTML = "";
+                if (ns.empty) classNotices.innerHTML = "<div class='muted'>No class notices.</div>";
+                ns.forEach(docSnap => {
+                    const n = docSnap.data();
+                    const div = document.createElement("div");
+                    div.className = "list-item";
+                    div.innerHTML = `<strong>${n.title}</strong><div style="margin-top:6px;">${n.message}</div>
+        ${n.fileURL ? `<div style="margin-top:6px;"><a href="${n.fileURL}" target="_blank">📎 Attachment</a></div>` : ""}
+        <div class="muted">Posted: ${n.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>`;
+                    classNotices.appendChild(div);
+                });
+            });
+
+            // assignments
+            const qAssign = query(collection(db, "classes", classId, "assignments"), orderBy("createdAt", "desc"));
+            onSnapshot(qAssign, snap => {
+                assignList.innerHTML = "";
+                if (snap.empty) assignList.innerHTML = "<div class='muted'>No assignments yet.</div>";
+                snap.forEach(docSnap => {
+                    const a = docSnap.data();
+                    const id = docSnap.id;
+                    const div = document.createElement("div");
+                    div.className = "list-item";
+                    div.innerHTML = `<strong>${a.title}</strong>
+        <div style="margin-top:6px;">${a.description || ""}</div>
+        ${a.fileURL ? `<div style="margin-top:6px;"><a href="${a.fileURL}" target="_blank">📎 Attachment</a></div>` : ""}
+        <div class="muted">Posted: ${a.createdAt?.toDate?.()?.toLocaleString?.() || ""} ${a.dueDate ? ' · Due: ' + a.dueDate : ''}</div>
+        <div style="margin-top:8px;"><button class="btn secondary submitFor" data-id="${id}">Submit / Ask about this</button></div>`;
+                    assignList.appendChild(div);
+                });
+                document.querySelectorAll(".submitFor").forEach(btn => {
+                    btn.onclick = () => submitFor.value = btn.dataset.id;
+                });
+            });
+
+            // submissions & questions viewer for the student (their own)
+            const qSubs = query(collection(db, "classes", classId, "submissions"), orderBy("createdAt", "desc"));
+            // Note: we used a flat "submissions" in earlier version; but to keep submissions tied to assignments, we also store per-assignment submissions.
+            // For simplicity show student's own recent submissions from assignments subcollections
+            submissions.innerHTML = "<div class='muted'>Loading your submissions/questions...</div>";
+            // We'll query assignments then fetch submissions per assignment for this student
+            const aSnap = await getDocs(query(collection(db, "classes", classId, "assignments")));
+            submissions.innerHTML = "";
+            for (const aDoc of aSnap.docs) {
+                const aId = aDoc.id, a = aDoc.data();
+                const sSnap = await getDocs(query(collection(db, "classes", classId, "assignments", aId, "submissions"), where("studentUid", "==", me.uid)));
+                sSnap.forEach(sd => {
+                    const s = sd.data();
+                    const div = document.createElement("div");
+                    div.className = "list-item";
+                    div.innerHTML = `<strong>${a.title} — ${s.title}</strong>
+        <div style="margin-top:6px;">${s.message || ""}</div>
+        ${s.fileURL ? `<div style="margin-top:6px;"><a href="${s.fileURL}" target="_blank">📎 View</a></div>` : ""}
+        <div class="muted">Submitted: ${s.createdAt?.toDate?.()?.toLocaleString?.() || ""}</div>`;
+                    submissions.appendChild(div);
+                });
+            }
+        }
+
+        // leave class (best-effort)
+        leaveClassBtn.onclick = async () => {
+            if (!currentClass) return;
+            if (!confirm("Leave this class?")) return;
+            try {
+                const cRef = doc(db, "classes", currentClass);
+                const cSnap = await getDoc(cRef);
+                if (!cSnap.exists()) return;
+                const c = cSnap.data();
+                const members = (c.members || []).filter(x => x !== me.uid);
+                await updateDoc(cRef, { members });
+            } catch (e) {
+                console.log("Leave error", e);
+            }
+            classArea.style.display = "none";
+            currentClass = null;
+            loadMyClasses();
+        };
+
+        // submit or ask
+        submitForm.addEventListener("submit", async e => {
+            e.preventDefault();
+            if (!currentClass) return alert("Open a class first.");
+            const type = submitType.value;
+            const forId = submitFor.value || null; // assignment id, optional
+            const title = submitTitle.value.trim();
+            const msg = submitMsg.value.trim();
+            const file = submitFile.files[0];
+            let fileURL = "", fileName = "";
+            if (file) {
+                const path = `submissions/${currentClass}/${me.uid}_${Date.now()}_${file.name}`;
+                const ref = sRef(storage, path);
+                const uploadTask = await uploadBytesResumable(ref, file);
+                fileURL = await getDownloadURL(uploadTask.ref);
+                fileName = file.name;
+            }
+            if (type === "submission" && forId) {
+                // store under assignment subcollection
+                await addDoc(collection(db, "classes", currentClass, "assignments", forId, "submissions"), {
+                    title, message: msg, fileURL, fileName, studentUid: me.uid, studentEmail: me.email, studentName: me.displayName, createdAt: serverTimestamp()
+                });
+            } else if (type === "submission" && !forId) {
+                // general submission (fallback) - add to class submissions (flat)
+                await addDoc(collection(db, "classes", currentClass, "submissions"), {
+                    title, message: msg, fileURL, fileName, studentUid: me.uid, studentEmail: me.email, studentName: me.displayName, createdAt: serverTimestamp()
+                });
+            } else {
+                // question
+                await addDoc(collection(db, "classes", currentClass, "questions"), {
+                    title, message: msg, fileURL, fileName, studentUid: me.uid, studentEmail: me.email, studentName: me.displayName, createdAt: serverTimestamp()
+                });
+            }
+            submitForm.reset();
+            alert("Sent!");
+        });
+
+    </script>
+</body>
+
+</html>
